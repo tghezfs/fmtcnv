@@ -2,17 +2,14 @@ use std::error::Error;
 use std::fs;
 use std::io::{Error as IOError, ErrorKind};
 use std::path::Path;
-use std::str::FromStr;
 
-use chrono::{DateTime, NaiveDate, NaiveDateTime};
 use clap::Parser;
 
 mod cli;
 use cli::Args;
 
 mod parser;
-use parser::{Format, parse_format};
-use toml::map::Map;
+use parser::{Format, parse_format, json_to_toml};
 
 const VALID_FORMATS: [&str; 4] = ["json", "yaml", "yml", "toml"]; 
 
@@ -28,6 +25,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     let abs_path = fs::canonicalize(path)?;
+
+    let _out_path = Path::new(&args.out_file);
 
     match abs_path.extension() {
         Some(ext) => {
@@ -48,8 +47,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
                         match out_format {
                             Format::Toml => {
-                                let toml_result = process_parsed_json_to_toml(parsed_content);
-                                if let Some(toml_tree) = toml_result {
+                                if let Some(toml_tree) = json_to_toml(parsed_content) {
                                     let toml_string = toml::to_string(&toml_tree)?;
                                     println!("toml string \n\n{}", toml_string);
                                 }
@@ -81,46 +79,4 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
     Ok(())
 
-}
-
-fn process_parsed_json_to_toml(value: serde_json::Value) -> Option<toml::Value> {
-    match value {
-        serde_json::Value::Bool(b) => Some(toml::Value::Boolean(b)),
-        serde_json::Value::Number(n) => {
-            if n.is_f64() {
-                Some(toml::Value::Float(n.as_f64().unwrap()))
-            } else {
-                Some(toml::Value::Integer(n.as_i64().unwrap()))
-            }
-        },
-        serde_json::Value::String(s) => {
-            if DateTime::parse_from_rfc3339(&s).is_ok() || 
-                NaiveDateTime::parse_from_str(&s, "%Y-%m-%dT%H:%M:%S").is_ok() ||
-                    NaiveDate::parse_from_str(&s, "%Y-%m-%d").is_ok() {
-                Some(toml::Value::Datetime(toml::value::Datetime::from_str(&s).unwrap()))
-            } else {
-                Some(toml::Value::String(s))
-            }
-        },
-        serde_json::Value::Object(map) => {
-            let mut current_map: Map<String, toml::Value> = Map::new();
-            for (k, v) in map {
-                if let Some(toml_value) = process_parsed_json_to_toml(v) {
-                    //root_table.insert(k, toml_value);
-                    current_map.insert(k, toml_value);
-                }
-            }
-            Some(toml::Value::Table(current_map))
-        },
-        serde_json::Value::Array(arr ) => {
-            let mut values: Vec<toml::Value> = Vec::new();
-            for value in arr {
-                if let Some(toml_value) = process_parsed_json_to_toml(value) {
-                    values.push(toml_value)
-                }
-            }
-            Some(toml::Value::Array(values))
-        },
-        serde_json::Value::Null => None
-    }
 }

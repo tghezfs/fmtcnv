@@ -7,5 +7,8 @@ pub struct Args {
     pub file: String,
 
     #[arg(short, long)]
-    pub to_format: String
+    pub to_format: String,
+
+    #[arg(short, long)]
+    pub out_file: String
 }
