@@ -1,6 +1,6 @@
 use std::error::Error;
-use std::fs;
-use std::io::{Error as IOError, ErrorKind};
+use std::fs::{self, OpenOptions};
+use std::io::{BufWriter, Error as IOError, ErrorKind, Write};
 use std::path::Path;
 
 use clap::Parser;
@@ -11,6 +11,9 @@ use cli::Args;
 mod parser;
 use parser::{Format, parse_format, json_to_toml};
 
+mod fs_op;
+use fs_op::get_out_path;
+
 const VALID_FORMATS: [&str; 4] = ["json", "yaml", "yml", "toml"]; 
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -20,13 +23,21 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let path = Path::new(&args.file);
 
-    if path.metadata()?.is_dir() {
+    let abs_path = fs::canonicalize(path)?;
+
+    if abs_path.metadata()?.is_dir() {
         return Err( Box::new(IOError::new(ErrorKind::IsADirectory, "Cannot parse or read a dir")) );
     }
 
-    let abs_path = fs::canonicalize(path)?;
+    let in_filename = path
+        .file_name()
+        .expect("File name must be valid at this point!")
+        .to_string_lossy()
+        .to_string();
 
-    let _out_path = Path::new(&args.out_file);
+
+    let out_path = get_out_path(&args.out_file, &in_filename)?;
+
 
     match abs_path.extension() {
         Some(ext) => {
@@ -41,35 +52,28 @@ fn main() -> Result<(), Box<dyn Error>> {
                 let in_format = parse_format(&extension)
                     .expect("Input Format must be valid at this point!");
 
-                match in_format {
-                    Format::Json => {
+                match (in_format, out_format) {
+                    (Format::Json, Format::Toml) => {
                         let parsed_content: serde_json::Value  = serde_json::from_str(&content)?;
 
-                        match out_format {
-                            Format::Toml => {
-                                if let Some(toml_tree) = json_to_toml(parsed_content) {
-                                    let toml_string = toml::to_string(&toml_tree)?;
-                                    println!("toml string \n\n{}", toml_string);
-                                }
-                            },
-                            Format::Yaml => {}
-                            _ => {}
-                        }
-                    }
-                    Format::Yaml => {
-                        let parsed_content: serde_yaml_ng::Value = serde_yaml_ng::from_str(&content)?;
-                        println!("yaml parsed = {parsed_content:?}");
-                    },
-                    Format::Toml => {
-                        let parsed_content: toml::Value = toml::from_str(&content)?;
-                        println!("toml parsed = {parsed_content:?}");
-                    }
-                };
+                        if let Some(toml_tree) = json_to_toml(parsed_content) {
+                            let toml_string = toml::to_string(&toml_tree)?;
+                            println!("toml string \n\n{}", toml_string);
 
-                match out_format {
-                    Format::Json => {},
-                    Format::Yaml => {},
-                    Format::Toml => {}
+                            let mut f = OpenOptions::new()
+                                .write(true)
+                                .create_new(true)
+                                .open(out_path)?;
+
+                            f.write_all(toml_string.as_bytes())?;
+                        }
+                    },
+                    (Format::Json, Format::Yaml) => {},
+                    (Format::Toml, Format::Json) => {},
+                    (Format::Toml, Format::Yaml) => {},
+                    (Format::Yaml, Format::Json) => {},
+                    (Format::Yaml, Format::Toml) => {},
+                    (_, _) => {}
                 }
             } else {
                 todo!()

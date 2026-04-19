@@ -10,5 +10,5 @@ pub struct Args {
     pub to_format: String,
 
     #[arg(short, long)]
-    pub out_file: String
+    pub out_file: Option<String>
 }
