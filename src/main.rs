@@ -1,6 +1,6 @@
 use std::error::Error;
 use std::fs::{self, OpenOptions};
-use std::io::{BufWriter, Error as IOError, ErrorKind, Write};
+use std::io::{ Error as IOError, ErrorKind, Write};
 use std::path::Path;
 
 use clap::Parser;
@@ -8,11 +8,22 @@ use clap::Parser;
 mod cli;
 use cli::Args;
 
-mod parser;
-use parser::{Format, parse_format, json_to_toml};
+mod format;
+use format::{Format, parse_format};
+
+mod json_mapper;
+use json_mapper::{ json_to_toml, json_to_yaml };
+
+mod toml_mapper;
+use toml_mapper::{ toml_to_json, toml_to_yaml };
+
+mod yaml_mapper;
+use yaml_mapper::{ yaml_to_toml, yaml_to_json };
 
 mod fs_op;
 use fs_op::get_out_path;
+
+mod utils;
 
 const VALID_FORMATS: [&str; 4] = ["json", "yaml", "yml", "toml"]; 
 
@@ -56,7 +67,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     (Format::Json, Format::Toml) => {
                         let parsed_content: serde_json::Value  = serde_json::from_str(&content)?;
 
-                        if let Some(toml_tree) = json_to_toml(parsed_content) {
+                        if let Some(toml_tree) = json_to_toml(parsed_content)? {
                             let toml_string = toml::to_string(&toml_tree)?;
                             println!("toml string \n\n{}", toml_string);
 
@@ -68,11 +79,87 @@ fn main() -> Result<(), Box<dyn Error>> {
                             f.write_all(toml_string.as_bytes())?;
                         }
                     },
-                    (Format::Json, Format::Yaml) => {},
-                    (Format::Toml, Format::Json) => {},
-                    (Format::Toml, Format::Yaml) => {},
-                    (Format::Yaml, Format::Json) => {},
-                    (Format::Yaml, Format::Toml) => {},
+                    (Format::Json, Format::Yaml) => {
+                        let parsed_content: serde_json::Value = serde_json::from_str(&content)?;
+
+                        let yaml_tree = json_to_yaml(parsed_content)?;
+
+                        let yaml_string = serde_yaml_ng::to_string(&yaml_tree)?;
+
+                        println!("yaml string \n\n{}", yaml_string);
+
+                        let mut f = OpenOptions::new()
+                            .write(true)
+                            .create_new(true)
+                            .open(out_path)?;
+
+                        f.write_all(yaml_string.as_bytes())?;
+                    },
+                    (Format::Toml, Format::Json) => {
+                        let parsed_content: toml::Value = toml::from_str(&content)?;
+
+                        let json_tree = toml_to_json(parsed_content)?;
+
+                        let json_string = toml::to_string(&json_tree)?;
+
+                        println!("yaml string \n\n{}", json_string);
+
+                        let mut f = OpenOptions::new()
+                            .write(true)
+                            .create_new(true)
+                            .open(out_path)?;
+
+                        f.write_all(json_string.as_bytes())?;
+                    },
+                    (Format::Toml, Format::Yaml) => {
+                        let parsed_content: toml::Value = toml::from_str(&content)?;
+
+                        let yaml_tree = toml_to_yaml(parsed_content);
+
+                        let yaml_string = serde_yaml_ng::to_string(&yaml_tree)?;
+
+                        println!("yaml string \n\n{}", yaml_string);
+
+                        let mut f = OpenOptions::new()
+                            .write(true)
+                            .create_new(true)
+                            .open(out_path)?;
+
+                        f.write_all(yaml_string.as_bytes())?;
+
+                    },
+                    (Format::Yaml, Format::Json) => {
+                        let parsed_content: serde_yaml_ng::Value = serde_yaml_ng::from_str(&content)?;
+
+                        if let Some(json_tree ) = yaml_to_json(parsed_content)? {
+                            let json_string = toml::to_string(&json_tree)?;
+
+                            println!("yaml string \n\n{}", json_string);
+
+                            let mut f = OpenOptions::new()
+                                .write(true)
+                                .create_new(true)
+                                .open(out_path)?;
+
+                            f.write_all(json_string.as_bytes())?;
+                        }
+                    },
+                    (Format::Yaml, Format::Toml) => {
+                        let parsed_content: serde_yaml_ng::Value  = serde_yaml_ng::from_str(&content)?;
+
+                        if let Some(toml_tree) = yaml_to_toml(parsed_content)? {
+                            let toml_string = toml::to_string(&toml_tree)?;
+                            println!("toml string \n\n{}", toml_string);
+
+                            let mut f = OpenOptions::new()
+                                .write(true)
+                                .create_new(true)
+                                .open(out_path)?;
+
+                            f.write_all(toml_string.as_bytes())?;
+                        }
+
+                    },
                     (_, _) => {}
                 }
             } else {
@@ -82,5 +169,4 @@ fn main() -> Result<(), Box<dyn Error>> {
         None => { todo!() }
     }
     Ok(())
-
 }
