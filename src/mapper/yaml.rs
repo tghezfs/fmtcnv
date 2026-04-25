@@ -84,7 +84,7 @@ pub fn yaml_to_toml(value: YamlValue) -> Result<Option<TomlValue>, Box<dyn Error
         },
         YamlValue::String(val) => {
             if is_iso_8601(&val) {
-                Ok(Some(TomlValue::Datetime(Datetime::from_str(&val).unwrap())))
+                Ok(Some(TomlValue::Datetime(Datetime::from_str(&val)?)))
             } else {
                 Ok(Some(TomlValue::String(val)))
             }

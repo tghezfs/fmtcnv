@@ -2,6 +2,7 @@ use std::error::Error;
 use std::io::{ErrorKind, Error as IOError};
 use std::path::Path;
 
+#[derive(PartialEq, Debug)]
 pub enum Format {
     Json,
     Yaml,
@@ -24,6 +25,6 @@ pub fn get_format_by_path(path: &Path) -> Format {
         Some("json") => Format::Json,
         Some("toml") => Format::Toml,
         Some("yaml") | Some("yml") => Format::Yaml,
-        Some(_) | None => Format::Unknown,
+        _ => Format::Unknown,
     }
 }

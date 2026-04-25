@@ -32,7 +32,7 @@ pub fn json_to_toml(value: JsonValue) -> Result<Option<TomlValue>, Box<dyn Error
         },
         JsonValue::String(s) => {
             if is_iso_8601(&s) {
-                Ok(Some(TomlValue::Datetime(Datetime::from_str(&s).unwrap())))
+                Ok(Some(TomlValue::Datetime(Datetime::from_str(&s)?)))
             } else {
                 Ok(Some(TomlValue::String(s)))
             }

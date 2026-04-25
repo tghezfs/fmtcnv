@@ -1,6 +1,6 @@
 use crate::format::Format;
 use std::error::Error;
-use std::io::{Error as IOError, ErrorKind};
+use std::io::{ Error as IOError, ErrorKind};
 use std::fs;
 use std::path::Path;
 
@@ -12,92 +12,92 @@ use crate::mapper::json::{ json_to_toml, json_to_yaml };
 use crate::mapper::toml::{ toml_to_json, toml_to_yaml };
 use crate::mapper::yaml::{ yaml_to_json, yaml_to_toml };
 
-pub fn convert(in_format: Format, out_format: Format, path: &Path) -> Result<Option<String>, Box<dyn Error>>  {
-    let content = fs::read_to_string(path)?;
-    match (in_format, &out_format) {
-        (Format::Json, Format::Toml) => {
-            let parsed_content: JsonValue = serde_json::from_str(&content)?;
+enum ParsedData {
+    Json(JsonValue),
+    Toml(TomlValue),
+    Yaml(YamlValue),
+}
 
-            if let Some(toml_tree) = json_to_toml(parsed_content)? {
-                let toml_string = toml::to_string(&toml_tree)?;
-                println!("toml string \n\n{}", toml_string);
-                return Ok(Some(toml_string));
+pub fn convert(in_format: Format, out_format: Format, path: &Path) -> Result<Option<String>, Box<dyn Error>>  {
+    let content = fs::read(path)?;
+
+    if in_format == out_format {
+        return Ok(Some(String::from_utf8_lossy(&content).into_owned()));
+    }
+
+    let parsed_data = match in_format {
+        Format::Json => ParsedData::Json(serde_json::from_slice(&content)?),
+        Format::Toml => ParsedData::Toml(toml::from_slice(&content)?),
+        Format::Yaml => ParsedData::Yaml(serde_yaml_ng::from_slice(&content)?),
+        Format::Unknown => {
+            if let Ok(val) = serde_json::from_slice::<JsonValue>(&content) {
+                ParsedData::Json(val)
+            } else if let Ok(val) = toml::from_slice::<TomlValue>(&content) {
+                ParsedData::Toml(val)
+            } else if let Ok(val) = serde_yaml_ng::from_slice::<YamlValue>(&content) {
+                ParsedData::Yaml(val)
             } else {
-                eprintln!("⚠️ Warning: There was a format incompatibility.\n\
-                            Some data could not be converted correctly.");
-                return Ok(None);
+                return Err(Box::new(IOError::new(ErrorKind::InvalidInput, "Invalid file format")));
             }
+        }
+    };
+
+    match (parsed_data, &out_format) {
+        (ParsedData::Json(json), Format::Toml) => {
+            transform_and_serialize(
+                json, 
+                json_to_toml, 
+                |tree| Ok(toml::to_string(tree)?)
+            )
         },
-        (Format::Json, Format::Yaml) => {
-            let parsed_content: JsonValue = serde_json::from_str(&content)?;
-            let yaml_tree = json_to_yaml(parsed_content)?;
+        (ParsedData::Json(json), Format::Yaml) => {
+            let yaml_tree = json_to_yaml(json)?;
             let yaml_string = serde_yaml_ng::to_string(&yaml_tree)?;
-            println!("yaml string \n\n{}", yaml_string);
             return Ok(Some(yaml_string));
         },
-        (Format::Toml, Format::Json) => {
-            let parsed_content: TomlValue = toml::from_str(&content)?;
-            let json_tree = toml_to_json(parsed_content)?;
-            let json_string = toml::to_string(&json_tree)?;
-            println!("yaml string \n\n{}", json_string);
+        (ParsedData::Toml(toml_value), Format::Json) => {
+            let json_tree = toml_to_json(toml_value)?;
+            let json_string = serde_json::to_string(&json_tree)?;
             return Ok(Some(json_string));
         },
-        (Format::Toml, Format::Yaml) => {
-            let parsed_content: TomlValue = toml::from_str(&content)?;
-            let yaml_tree = toml_to_yaml(parsed_content);
+        (ParsedData::Toml(toml_value), Format::Yaml) => {
+            let yaml_tree = toml_to_yaml(toml_value);
             let yaml_string = serde_yaml_ng::to_string(&yaml_tree)?;
-            println!("yaml string \n\n{}", yaml_string);
             return Ok(Some(yaml_string));
         },
-        (Format::Yaml, Format::Json) => {
-            let parsed_content: YamlValue = serde_yaml_ng::from_str(&content)?;
-
-            if let Some(json_tree ) = yaml_to_json(parsed_content)? {
-                let json_string = toml::to_string(&json_tree)?;
-                println!("yaml string \n\n{}", json_string);
-                return Ok(Some(json_string));
-            } else {
-                eprintln!("⚠️ Warning: There was a format incompatibility.\n\
-                            Some data could not be converted correctly.");
-                return Ok(None);
-            }
+        (ParsedData::Yaml(yaml), Format::Json) => {
+            transform_and_serialize(
+                yaml, 
+                yaml_to_json,
+                |tree| Ok(serde_json::to_string(tree)?)
+            )
         },
-        (Format::Yaml, Format::Toml) => {
-            let parsed_content: YamlValue = serde_yaml_ng::from_str(&content)?;
-
-            if let Some(toml_tree) = yaml_to_toml(parsed_content)? {
-                let toml_string = toml::to_string(&toml_tree)?;
-                println!("toml string \n\n{}", toml_string);
-                return Ok(Some(toml_string));
-            } else {
-                eprintln!("⚠️ Warning: There was a format incompatibility.\n\
-                            Some data could not be converted correctly.");
-                return Ok(None);
-            }
+        (ParsedData::Yaml(yaml), Format::Toml) => {
+            transform_and_serialize(
+                yaml, 
+                yaml_to_toml,
+                |tree| Ok(toml::to_string(tree)?)
+            )
         },
-        (Format::Unknown, _) => {
-            // This needs to be improved because it's doing double the work.
-            if serde_json::from_str::<JsonValue>(&content).is_ok() {
-                return convert(Format::Json, out_format, path);
-            }
-
-            if toml::from_str::<TomlValue>(&content).is_ok() {
-                return convert(Format::Toml, out_format, path);
-            }
-
-            if serde_yaml_ng::from_str::<YamlValue>(&content).is_ok() {
-                return convert(Format::Yaml, out_format, path);
-            }
-
-            let error = IOError::new(
-                ErrorKind::InvalidInput,
-                format!("Invalid file format")
-            );
-
-            return Err(Box::new(error));
-
-        },
-        (_, _) => return Ok(Some(content.to_string()))
+        _  => return Ok(Some(String::from_utf8_lossy(&content).into_owned()))
     }
 }
 
+fn transform_and_serialize<T, S, F>(
+    input: T, 
+    mapper_fn: F, 
+    serialize_fn: impl FnOnce(&S) -> Result<String, Box<dyn Error>>
+) -> Result<Option<String>, Box<dyn Error>> 
+where
+    T: serde::Serialize,
+    F: FnOnce(T) -> Result<Option<S>, Box<dyn Error>>
+{
+    match mapper_fn(input)? {
+        Some(tree) => Ok(Some(serialize_fn(&tree)?)),
+        None => {
+            eprintln!("⚠️ Warning: There was a format incompatibility.\n\
+                    Some data could not be converted correctly.");
+            Ok(None)
+        }
+    }
+}
