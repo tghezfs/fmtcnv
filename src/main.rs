@@ -40,7 +40,6 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let out_path = get_out_path(&args.out_file, &in_filename)?;
 
-    println!("out_path = {:?}", out_path);
     if let Some(result_string) = convert(in_format, out_format, path)? {
         let mut tmp_file = NamedTempFile::new()?;
         tmp_file.write_all(result_string.as_bytes())?;

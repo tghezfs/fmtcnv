@@ -73,7 +73,7 @@ pub fn json_to_yaml(value: JsonValue) -> Result<YamlValue, Box<dyn Error>> {
             } else {
                 let error = IOError::new(
                     ErrorKind::InvalidData, 
-                    "Value not supported for a number in YAML format.!"
+                    "Value not supported for a number in YAML format."
                 );
                 Err(Box::new(error))
             }
