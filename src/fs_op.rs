@@ -1,16 +1,18 @@
-use std::{env, fs};
-use std::path::{Path, PathBuf};
 use std::error::Error;
-use std::io::{ Error as IOError, ErrorKind };
+use std::io::{Error as IOError, ErrorKind};
+use std::path::{Path, PathBuf};
+use std::{env, fs};
 
 use crate::utils::is_valid_path_str;
 
 pub fn get_out_path(path: &Option<String>, default_name: &str) -> Result<PathBuf, Box<dyn Error>> {
-     let final_path = match path {
+    let final_path = match path {
         Some(out_path) => {
-
             if !is_valid_path_str(out_path) {
-                return Err(Box::new(IOError::new( ErrorKind::InvalidInput, "The output path or file must have valid name." )));
+                return Err(Box::new(IOError::new(
+                    ErrorKind::InvalidInput,
+                    "The output path or file must have valid name.",
+                )));
             }
 
             let o_path = Path::new(out_path);
@@ -26,21 +28,22 @@ pub fn get_out_path(path: &Option<String>, default_name: &str) -> Result<PathBuf
             }
 
             final_path
-        },
+        }
         None => {
             let cwd = env::current_dir()?;
             cwd.join(default_name)
         }
     };
-    
+
     if final_path.is_file() {
-        return Err(Box::new(IOError::new(ErrorKind::AlreadyExists, "The output path already contains a file with the same name.")))
+        return Err(Box::new(IOError::new(
+            ErrorKind::AlreadyExists,
+            "The output path already contains a file with the same name.",
+        )));
     }
 
     Ok(final_path)
-
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -54,9 +57,9 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let file_path = temp_dir.path().join("output.txt");
         let path_str = file_path.to_str().unwrap().to_string();
-        
+
         let result = get_out_path(&Some(path_str), "default.txt").unwrap();
-        
+
         assert_eq!(result, file_path);
     }
 
@@ -64,18 +67,18 @@ mod tests {
     fn test_with_some_path_without_filename() {
         let temp_dir = TempDir::new().unwrap();
         let dir_path = temp_dir.path().to_str().unwrap().to_string() + "/";
-        
+
         let result = get_out_path(&Some(dir_path.clone()), "default.txt").unwrap();
-        
+
         assert_eq!(result, Path::new(&dir_path).join("default.txt"));
     }
 
     #[test]
     fn test_with_none_path() {
         let cwd = env::current_dir().unwrap();
-        
+
         let result = get_out_path(&None, "default.txt").unwrap();
-        
+
         assert_eq!(result, cwd.join("default.txt"));
     }
 
@@ -85,11 +88,11 @@ mod tests {
         let nested_dir = temp_dir.path().join("subdir1").join("subdir2");
         let file_path = nested_dir.join("output.txt");
         let path_str = file_path.to_str().unwrap().to_string();
-        
+
         assert!(!nested_dir.exists());
-        
+
         let result = get_out_path(&Some(path_str), "default.txt").unwrap();
-        
+
         assert_eq!(result, file_path);
         assert!(nested_dir.exists());
     }
@@ -100,9 +103,9 @@ mod tests {
         let existing_dir = temp_dir.path().join("existing");
         fs::create_dir_all(&existing_dir).unwrap();
         let dir_path = existing_dir.to_str().unwrap().to_string() + "/";
-        
+
         let result = get_out_path(&Some(dir_path), "output.txt").unwrap();
-        
+
         assert_eq!(result, existing_dir.join("output.txt"));
     }
 
@@ -116,8 +119,8 @@ mod tests {
     fn test_with_different_default_names() {
         let temp_dir = TempDir::new().unwrap();
         let dir_path = temp_dir.path().to_str().unwrap().to_string() + "/";
-        
-        let result = get_out_path(&Some(dir_path), "custom.json").unwrap(); 
+
+        let result = get_out_path(&Some(dir_path), "custom.json").unwrap();
         assert_eq!(result, temp_dir.path().join("custom.json"));
     }
 
@@ -127,15 +130,14 @@ mod tests {
         let deep_nested = temp_dir.path().join("a").join("b").join("c").join("d");
         let file_path = deep_nested.join("result.txt");
         let path_str = file_path.to_str().unwrap().to_string();
-        
+
         assert!(!deep_nested.exists());
-        
+
         let result = get_out_path(&Some(path_str), "default.txt").unwrap();
-        
+
         assert_eq!(result, file_path);
         assert!(deep_nested.exists());
     }
-
 
     #[test]
     fn test_with_only_filename_no_directory() {
@@ -147,9 +149,9 @@ mod tests {
     #[test]
     fn test_none_with_different_default_names() {
         let cwd = env::current_dir().unwrap();
-        
+
         let result = get_out_path(&None, "backup.bak").unwrap();
-        
+
         assert_eq!(result, cwd.join("backup.bak"));
     }
 
@@ -158,11 +160,11 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let dir_path = temp_dir.path().join("newdir");
         let path_str = dir_path.to_str().unwrap().to_string() + "/";
-        
+
         assert!(!dir_path.exists());
-        
+
         let result = get_out_path(&Some(path_str), "output.txt").unwrap();
-        
+
         assert_eq!(result, dir_path.join("output.txt"));
         assert!(dir_path.exists());
     }
@@ -173,9 +175,9 @@ mod tests {
         let existing_file = temp_dir.path().join("existing.txt");
         fs::write(&existing_file, "content").unwrap();
         let path_str = existing_file.to_str().unwrap().to_string();
-        
+
         let result = get_out_path(&Some(path_str), "default.txt");
-        
+
         assert!(result.is_err());
     }
 
@@ -185,9 +187,9 @@ mod tests {
         let existing_file = temp_dir.path().join("isfile");
         fs::write(&existing_file, "content").unwrap();
         let path_str = existing_file.to_str().unwrap().to_string() + "/";
-        
+
         let result = get_out_path(&Some(path_str), "output.txt");
-        
+
         assert!(result.is_err());
     }
 
@@ -196,9 +198,9 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let file_path = temp_dir.path().join("my file.txt");
         let path_str = file_path.to_str().unwrap().to_string();
-        
+
         let result = get_out_path(&Some(path_str), "default.txt").unwrap();
-        
+
         assert_eq!(result, file_path);
     }
 
@@ -207,9 +209,9 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let file_path = temp_dir.path().join("año_reporte.txt");
         let path_str = file_path.to_str().unwrap().to_string();
-        
+
         let result = get_out_path(&Some(path_str), "default.txt").unwrap();
-        
+
         assert_eq!(result, file_path);
     }
 

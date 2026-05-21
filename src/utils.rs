@@ -1,9 +1,9 @@
-use chrono::{ DateTime, NaiveDateTime, NaiveDate };
+use chrono::{DateTime, NaiveDate, NaiveDateTime};
 
 pub fn is_iso_8601(s: &str) -> bool {
-     DateTime::parse_from_rfc3339(&s).is_ok() || 
-        NaiveDateTime::parse_from_str(&s, "%Y-%m-%dT%H:%M:%S").is_ok() ||
-        NaiveDate::parse_from_str(&s, "%Y-%m-%d").is_ok()
+    DateTime::parse_from_rfc3339(&s).is_ok()
+        || NaiveDateTime::parse_from_str(&s, "%Y-%m-%dT%H:%M:%S").is_ok()
+        || NaiveDate::parse_from_str(&s, "%Y-%m-%d").is_ok()
 }
 
 pub fn is_valid_path_str(path: &str) -> bool {
@@ -12,20 +12,15 @@ pub fn is_valid_path_str(path: &str) -> bool {
     }
 
     path.chars()
-        .all(|c| {
-            c.is_alphanumeric() || 
-                c == ' ' ||
-                matches!(c, '/' | '.' | '-' | '_')
-        })
+        .all(|c| c.is_alphanumeric() || c == ' ' || matches!(c, '/' | '.' | '-' | '_'))
 }
-
 
 #[cfg(test)]
 mod tests_iso_8601 {
     use super::*;
 
     #[test]
-    fn test_valid_rfc3339_with_timezone(){
+    fn test_valid_rfc3339_with_timezone() {
         assert!(is_iso_8601("2023-12-25T10:30:00Z"));
         assert!(is_iso_8601("2023-12-25T10:30:00+00:00"));
         assert!(is_iso_8601("2023-12-25T10:30:00-05:00"));

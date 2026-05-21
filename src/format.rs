@@ -1,5 +1,5 @@
 use std::error::Error;
-use std::io::{ErrorKind, Error as IOError};
+use std::io::{Error as IOError, ErrorKind};
 use std::path::Path;
 
 #[derive(PartialEq, Debug)]
@@ -7,7 +7,18 @@ pub enum Format {
     Json,
     Yaml,
     Toml,
-    Unknown
+    Unknown,
+}
+
+impl Format {
+    pub fn ext(&self) -> &str {
+        match self {
+            Format::Json => "json",
+            Format::Yaml => "yaml",
+            Format::Toml => "toml",
+            Format::Unknown => "",
+        }
+    }
 }
 
 pub fn parse_output_format(format: &str) -> Result<Format, Box<dyn Error>> {
@@ -16,7 +27,9 @@ pub fn parse_output_format(format: &str) -> Result<Format, Box<dyn Error>> {
         "yaml" | "yml" => Ok(Format::Yaml),
         "toml" => Ok(Format::Toml),
         _ => Err(Box::new(IOError::new(
-                    ErrorKind::InvalidInput, "Invalid Input Format!")))
+            ErrorKind::InvalidInput,
+            "Invalid Input Format",
+        ))),
     }
 }
 
@@ -126,7 +139,10 @@ mod tests {
 
     #[test]
     fn test_get_format_by_path_uppercase_extension() {
-        assert_eq!(get_format_by_path(Path::new("config.JSON")), Format::Unknown);
+        assert_eq!(
+            get_format_by_path(Path::new("config.JSON")),
+            Format::Unknown
+        );
     }
 
     #[test]
@@ -146,12 +162,18 @@ mod tests {
 
     #[test]
     fn test_get_format_by_path_with_directories() {
-        assert_eq!(get_format_by_path(Path::new("/home/user/config.json")), Format::Json);
+        assert_eq!(
+            get_format_by_path(Path::new("/home/user/config.json")),
+            Format::Json
+        );
     }
 
     #[test]
     fn test_get_format_by_path_multiple_dots() {
-        assert_eq!(get_format_by_path(Path::new("archive.tar.gz")), Format::Unknown);
+        assert_eq!(
+            get_format_by_path(Path::new("archive.tar.gz")),
+            Format::Unknown
+        );
     }
 
     #[test]
